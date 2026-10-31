@@ -26,7 +26,7 @@ software-copyright-materials/
 - **操作手册不套模板**：先理解项目业务、页面和功能，再写面向审核员的操作说明，避免只有空泛功能列表。
 - **申请表字段集中整理**：软件名称、版本号、著作权人、开发环境、运行环境、源程序量、功能说明等字段统一生成到 `申请表信息.txt`，官网填报时可以对照复制。
 - **关键节点都让你确认**：业务口径、申请表字段、代码选择、截图方式、最终 Markdown 草稿都会停下来让开发者确认，减少材料写偏的风险。
-- **Word/TXT 一键输出**：确认后生成操作手册 DOCX、代码材料 DOCX 和申请表 TXT，文件统一放在 `软件著作权申请资料/正式资料/`。
+- **Word/TXT 输出可选**：OfficeCLI 可用且用户选择时生成操作手册 DOCX、代码材料 DOCX 和申请表 TXT；跳过 OfficeCLI 时生成申请表 TXT 与报告，Markdown 草稿留在草稿目录。
 - **本地生成，资料可控**：默认在当前项目目录生成材料，代码、文档和草稿都留在本地，方便开发者自行审阅、修改和归档。
 - **提供完整 demo**：仓库内提供 [`生成demo/软件著作权申请资料/`](生成demo/软件著作权申请资料/)，可以直接点击查看生成后的草稿、正式资料和填报辅助文件。
 
@@ -105,7 +105,7 @@ cp -R software-copyright-materials "$PROJECT_SKILLS_DIR/"
 
 - **支持 Skill 的 coding agent 软件**：能够从本地 skill 目录加载 `software-copyright-materials/`。
 - **Python 3.10+**：用于项目分析、草稿生成、代码抽取、门禁和 OfficeCLI 命令编排。可以使用 coding agent 自带的 Python 运行时，无需另外安装 `python-docx`。
-- **全局安装的 OfficeCLI 1.0.151**：正式 Word 统一由 OfficeCLI 生成、校验和预览。仓库不复制 OfficeCLI 二进制，也不再使用 LibreOffice、Pandoc、内置 DOCX skill、.NET 工具包或项目内便携版兜底。
+- **OfficeCLI 1.0.151（可选）**：用户选择自动生成正式 Word 时使用。未安装时不阻塞软件开发、测试或 Markdown 草稿；可使用 `--text-only` 生成申请表 TXT 和报告，再由用户用 Word/WPS 手工排版。不会伪造 DOCX，也不会自动切换其他 DOCX 后端。
 - 生成完成后会继续通过 OfficeCLI 统一 DOCX 主题字体为宋体和 Times New Roman，并重新读取主题校验，避免 WPS 因默认的等线、Calibri、Calibri Light 提示缺失字体。
 - **可读取的项目源码**：代码材料必须从真实项目中抽取，所以需要在代码助手中打开或指定你的项目目录。
 
@@ -159,13 +159,12 @@ officecli --version
 - 当前平台是否可能使用 Word 原生页数校验。
 - 当前会把材料生成到哪里。
 
-如果 OfficeCLI 缺失或版本不匹配，代码助手会停下来让你选择：
+如果 OfficeCLI 缺失或版本不匹配，代码助手会给出一次可选提示：
 
-1. 使用官方安装脚本全局安装，安装后重启 coding agent 并重新检查。
-2. 切换到固定验证版本 `1.0.151`。
-3. 明确承担兼容性风险并使用其他版本（生成时必须显式传入 `--allow-untested-officecli`）。
+1. 现在安装/切换到固定验证版本 `1.0.151`，以便自动生成 Word。
+2. 跳过 OfficeCLI，继续软件开发、测试和 Markdown/TXT 材料整理；正式材料阶段可使用 `--text-only` 生成申请表 TXT 和报告，Markdown 草稿可由 Word/WPS 手工排版。
 
-没有可用 OfficeCLI 时不会伪装生成 DOCX，也不会自动回退到另一套写入实现。它不会在你不确认的情况下静默安装依赖。
+跳过不会阻塞工作流。没有可用 OfficeCLI 时不会伪装生成 DOCX，也不会自动回退到另一套写入实现。Skill 不会在你不确认的情况下静默安装依赖。
 
 进入截图阶段后，skill 只提供 Playwright CLI 自动截图和用户自行截图两种正常方式；用户也可以明确选择暂不截图。选择自动截图时会运行：
 

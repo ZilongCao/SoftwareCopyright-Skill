@@ -75,6 +75,55 @@ def write_application_txt(draft_dir: Path, out_dir: Path) -> tuple[Path | None, 
     return out_path, warnings
 
 
+def build_text_only(workdir: Path, software_name: str, version: str) -> dict[str, Any]:
+    """Create non-DOCX deliverables when the optional OfficeCLI backend is skipped."""
+    draft_dir = workdir / "草稿"
+    final_dir = ensure_dir(workdir / "正式资料")
+    outputs: list[Path] = []
+    warnings: list[str] = []
+
+    app_txt, app_warnings = write_application_txt(draft_dir, final_dir)
+    if app_txt:
+        outputs.append(app_txt)
+    warnings.extend(app_warnings)
+
+    report = final_dir / "生成报告.md"
+    lines = [
+        "# 生成报告",
+        "",
+        f"- 软件全称：{software_name}",
+        f"- 版本号：{version}",
+        "- 文档输出模式：text-only（用户跳过 OfficeCLI）",
+        "- DOCX：未生成",
+        "- OpenXML 校验：未执行",
+        "- Word 实际分页：未验证",
+        "",
+        "## 已生成文件",
+        "",
+    ]
+    for path in outputs:
+        size = path.stat().st_size if path.exists() else 0
+        lines.append(f"- `{path.name}`（{size} bytes）")
+    lines.extend([
+        "",
+        "## 保留在草稿目录的 Markdown",
+        "",
+        "- `草稿/操作手册.md`（如已生成）：可使用 Word/WPS 根据内容自行排版。",
+        "- `草稿/代码-前30页.md`、`草稿/代码-后30页.md` 或 `草稿/代码-全部.md`（以代码提取清单为准）：可用于人工生成代码材料。",
+        "",
+        "## 后续检查",
+        "",
+        "本次未生成 DOCX，不代表 Word 排版、OpenXML 结构或实际页数已通过验证。若需要自动生成 DOCX，可安装已验证版本 OfficeCLI 1.0.151 后重新运行正式生成命令；也可以使用 Word/WPS 手工排版并在提交前检查分页、字体和内容。",
+        "",
+        "## 警告",
+        "",
+    ])
+    lines.extend(f"- {warning}" for warning in warnings) if warnings else lines.append("- 无")
+    report.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {"outputs": [str(path) for path in outputs], "warnings": warnings, "report": str(report)}
+
+
+
 def read_json_if_exists(path: Path) -> dict[str, Any]:
     return read_json(path) if path.exists() else {}
 
@@ -654,6 +703,7 @@ def main() -> None:
     parser.add_argument("--version", default="V1.0")
     parser.add_argument("--allow-untested-officecli", action="store_true")
     parser.add_argument("--skip-preview", action="store_true")
+    parser.add_argument("--text-only", action="store_true", help="Skip DOCX generation and export only application TXT/report.")
     args = parser.parse_args()
     workdir = Path(args.workdir)
     issues = confirmation_issues(workdir)
@@ -664,8 +714,11 @@ def main() -> None:
             print(f"- {issue}")
         raise SystemExit(2)
     try:
-        result = build_all(workdir, args.software_name, args.version, args.skip_preview,
-                           args.allow_untested_officecli)
+        if args.text_only:
+            result = build_text_only(workdir, args.software_name, args.version)
+        else:
+            result = build_all(workdir, args.software_name, args.version, args.skip_preview,
+                               args.allow_untested_officecli)
     except (OfficeCliError, ValueError) as exc:
         raise SystemExit(f"DOCX_BUILD_FAILED\n{exc}") from exc
     print(f"OK final materials: {workdir / '正式资料'}")

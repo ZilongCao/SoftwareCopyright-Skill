@@ -5,8 +5,8 @@ description: >
   Use this skill when the user asks for 软件著作权, 软著申请资料, 软著代码材料,
   操作手册, 申请表信息, or wants Word/TXT materials for software copyright registration.
   The workflow analyzes the imported project, extracts real source code, creates Markdown
-  drafts for user confirmation, then uses a pinned OfficeCLI backend to produce final
-  Word documents and TXT.
+  drafts for user confirmation, then optionally uses a pinned OfficeCLI backend to produce
+  final Word documents. If OfficeCLI is unavailable, the workflow continues in Markdown/text-only mode.
 metadata:
   short-description: 生成软著申请资料 Word/TXT
   author: Fokkyp
@@ -40,9 +40,9 @@ metadata:
 - 操作手册生成必须同步输出 `草稿/操作手册自检记录.md` 和 `草稿/操作手册自检记录.json`，记录初稿、按项目流程扩写、去制式表达等自检轮次；如果前 3 轮仍发现问题，必须继续补写修正，直到问题清零或记录无法自动修复的原因后再停止。
 - 截图方式只允许用户选择：Playwright CLI 自动截图或用户自行截图。用户选择自动截图后，先检查固定验证版本的 `playwright-cli` 是否可用；如果用户说现在不截图、先跳过截图或截图失败，操作手册仍必须保留清晰可见的截图预留位置，正式 Word 中也要能看到。
 - 申请表信息中的硬件/系统环境必须让用户确认或填写，不能硬编码。
-- Word 生成统一使用 OfficeCLI 后端；Python 只负责业务分析、代码抽取、门禁和命令编排，不直接解包、重打包或写入 DOCX 包。OfficeCLI 完成正文写入后，必须通过 `/theme` + `raw-set` 把主题字体统一为宋体（SimSun）和 Times New Roman，并重新读取主题确认 Calibri、Calibri Light、等线等默认主题字体已消失。
-- OfficeCLI 固定验证版本为 `1.0.151`，运行时必须设置 `OFFICECLI_SKIP_UPDATE=1`，不得静默升级、静默安装或回退到 python-docx/Pandoc/.NET 工具包。
-- OfficeCLI 的安装、批处理、分页与校验细节见 `references/officecli_backend.md`。
+- OfficeCLI 是可选的正式 DOCX 生成后端，不是项目分析、软件开发、测试或 Markdown 文档撰写的前置条件。启动时只提示一次是否安装；用户选择跳过后继续完整的 Markdown 工作流，不得因 OfficeCLI 缺失而停止。
+- 用户选择使用 OfficeCLI 时，固定验证版本为 `1.0.151`，运行时设置 `OFFICECLI_SKIP_UPDATE=1`；不得静默安装或升级。若用户跳过 OfficeCLI，不得生成或宣称生成了 DOCX；应使用 `--text-only` 生成申请表 TXT 和生成报告，Markdown 草稿保留在草稿目录，用户可自行用 Word/WPS 排版。
+- Python 不直接解包、重打包或写入 DOCX 包。OfficeCLI 的安装、批处理、分页与校验细节见 `references/officecli_backend.md`。
 
 ## 路径与按需参考
 
@@ -69,7 +69,6 @@ metadata:
 
 必须停住的门禁：
 
-- `environment`：OfficeCLI 缺失时必须由用户确认全局安装并在安装后重启 Codex；版本不匹配时，用户必须切换固定版本或明确承担使用未经验证版本的风险。
 - `project`：存在多个项目候选目录时，用户必须指定项目目录。
 - `business`：`草稿/业务理解.md` 生成后，用户必须确认行业、目标用户、核心功能和申请口径。
 - `application-fields`：`草稿/申请表信息.md` 生成后，用户必须补全并确认硬件、系统环境、著作权人、日期等字段。
@@ -79,7 +78,7 @@ metadata:
 
 ## 工作流
 
-### 1. 启动环境检查
+### 1. 启动环境检查（OfficeCLI 可选）
 
 一开始先在当前工作目录创建输出目录并检查运行能力：
 
@@ -93,31 +92,20 @@ metadata:
 - `软件著作权申请资料/环境检查.md`
 - `软件著作权申请资料/环境检查.json`
 
-环境检查必须告诉用户：
+环境检查用于告知用户当前可用能力，不构成阻塞门禁。必须说明：
 
 - 当前会在“当前目录/软件著作权申请资料”下生成材料。
-- Markdown 草稿、TXT、OfficeCLI DOCX、OpenXML 校验和预览是否可用。
-- 当前 OfficeCLI 路径、版本，以及是否等于固定验证版本 `1.0.151`。
-- 如 OfficeCLI 缺失，询问用户是否使用官方命令全局安装；不得下载到项目目录或 skill 目录，也不得静默安装。
-- 如官方全局安装已完成但当前进程尚未识别，必须要求用户重启 Codex，停止当前执行，重启后重新运行环境检查。
+- Python、Markdown 草稿和申请表 TXT 能力是否可用。
+- OfficeCLI 路径、版本，以及是否等于固定验证版本 `1.0.151`。
+- DOCX 自动生成、OpenXML 校验和预览是否可用。
+- 若 OfficeCLI 缺失、需要重启或版本不匹配，提示用户可以现在安装，也可以跳过并继续；不得静默安装或升级。
 
-用户选择：
+OfficeCLI 的选择：
 
-- 如果用户愿意安装，在 Windows PowerShell 中运行 `irm https://raw.githubusercontent.com/iOfficeAI/OfficeCLI/main/install.ps1 | iex`。安装完成后要求用户重启 Codex；不得在当前任务中假定 PATH 已刷新后继续执行。
-- 重启后先运行 `officecli --version`，再重新运行环境检查。只使用 PATH 中的全局命令，不使用 `OFFICECLI_PATH`、`--officecli` 或项目内 `工具/officecli.exe`。
-- 如果用户坚持使用其他版本，必须先记录 `environment` 门禁，正式生成时显式传入 `--allow-untested-officecli`。
-- 没有可用 OfficeCLI 时只能继续生成/修改 Markdown 草稿和 TXT，不得生成伪成功的 DOCX。
-
-用户回复后记录门禁：
-
-```bash
-<PYTHON> "<SKILL_DIR>/scripts/confirm_stage.py" \
-  --workdir 软件著作权申请资料 \
-  --stage environment \
-  --note "<用户选择>"
-```
-
-不要等到最后验证阶段才发现 OfficeCLI 不可用；这个信息必须在流程开始时给出。
+- **选择安装/使用**：用户自行按官方说明全局安装。安装后如当前进程尚未识别新 PATH，再提醒用户重启 coding agent 并重新检查。固定验证版本为 `1.0.151`；使用其他版本必须明确提示兼容性风险。
+- **选择跳过**：立即继续项目定位、源码分析、业务理解、代码选择、测试和 Markdown 草稿，不要求记录 `environment` 确认门禁。正式材料阶段使用 `--text-only` 生成申请表 TXT 和生成报告；操作手册、代码材料等 Markdown 留在草稿目录，供用户自行用 Word/WPS 排版。
+- 不得在 OfficeCLI 不可用时调用不存在的 DOCX 后端、伪造 DOCX 文件或把 Markdown 改名为 DOCX。
+- 用户以后需要自动生成 Word 时，可以再安装固定版本并重新运行环境检查；无需重新开发软件或重写已确认的 Markdown。
 
 ### 2. 定位项目
 
@@ -422,9 +410,13 @@ metadata:
   --note "<用户确认内容>"
 ```
 
-### 10. 生成正式 Word/TXT
+### 10. 生成正式资料（OfficeCLI 可选）
 
-用户确认后运行：
+用户确认 Markdown 后，根据启动环境检查结果和用户选择决定输出方式。
+
+**方式 A：使用 OfficeCLI 生成 Word**
+
+只有 OfficeCLI 固定验证版本已就绪且用户选择生成 Word 时，才运行：
 
 ```bash
 <PYTHON> "<SKILL_DIR>/scripts/build_docx_from_md.py" \
@@ -433,22 +425,23 @@ metadata:
   --version "<版本号>"
 ```
 
-正式生成脚本必须重新读取 `草稿/申请表信息.md` 中已确认的“软件全称”和“版本号”，并用它们生成正式资料文件名、代码 Word 页眉和操作手册 Word 页眉。操作手册页眉必须与代码材料页眉格式一致：左侧为“软件全称 版本号”，右侧为“第 <页码> 页”。若命令参数 `--software-name` / `--version` 与申请表字段不同，以申请表字段为准，并在 `正式资料/生成报告.md` 中记录提示。
+若用户明确接受其他版本的兼容性风险，可额外传入 `--allow-untested-officecli`。正式生成脚本重新读取已确认的申请表软件全称和版本号，以其作为正式文件名、标题和页眉。OfficeCLI DOCX 写入、主题字体、页数和校验规则见 `references/officecli_backend.md`。
 
-生成脚本通过 OfficeCLI 原子 batch 写入 DOCX，并关闭自动更新与后台 resident。代码草稿中的每个物理行对应一个 Word 段落；超过 90 显示列的源码行在抽取阶段确定性折行，避免 Word 因代码宽度再次换行而造成页数漂移。所有代码段落连续写入正文，不设置 `pageBreakBefore`，最终分页由 Word 排版引擎自动完成；草稿中的页分组只用于选材量估算。不要启用 Word 自动行号替代源码行处理。
+**方式 B：跳过 OfficeCLI，生成 TXT 与 Markdown 交付**
 
-正式生成只处理 `草稿/代码提取清单.json` 的 `outputs` 中声明的代码 Markdown，并清理当前软件名下与本次模式冲突的旧代码 DOCX。不能遍历目录后把前 30 页、后 30 页和全部代码三种旧文件一起输出。
+OfficeCLI 未安装、版本不匹配，或用户选择暂不生成 Word 时，运行：
 
-输出：
+```bash
+<PYTHON> "<SKILL_DIR>/scripts/build_docx_from_md.py" \
+  --workdir 软件著作权申请资料 \
+  --software-name "<软件全称>" \
+  --version "<版本号>" \
+  --text-only
+```
 
-- `正式资料/申请表信息.txt`
-- 代码达到或超过 60 页：
-  - `正式资料/<软件全称>-代码(前30页).docx`
-  - `正式资料/<软件全称>-代码(后30页).docx`
-- 代码不足 60 页：
-  - `正式资料/<软件全称>-代码(全部).docx`
-- `正式资料/<软件全称>_操作手册.docx`
-- `正式资料/生成报告.md`
+该模式不导入或调用 OfficeCLI，只生成 `正式资料/申请表信息.txt` 和明确标注 DOCX 已跳过的 `正式资料/生成报告.md`。操作手册、代码材料和业务理解继续保留在 `草稿/` 中，用户可使用 Word/WPS 根据 Markdown 内容自行排版。不得把 Markdown 文件伪装成 DOCX，也不得声称已完成 Word 页数或 OpenXML 校验。
+
+两种模式都必须使用已确认的软件全称和版本号，并在生成报告中明确本次实际生成的文件、未生成的文件及后续人工检查事项。
 
 ### 11. 三轮验证
 
@@ -469,14 +462,14 @@ officecli view <生成的代码docx> stats --page-count --json
 officecli view <生成的docx> screenshot --grid auto --render auto -o <预览.png>
 ```
 
-`validate` 只证明 OpenXML 结构可读，不能证明分页正确。Windows 且安装 Word 时由 OfficeCLI 使用 `stats --page-count` 读取自动分页后的真实页数；前 30 页/后 30 页文档必须分别正好 30 页，否则生成失败并要求重新校准选材量，不得改回人工固定分页。其他环境先用 OfficeCLI HTML 预览，再用 Word/WPS 打开最终文件复核页数。只使用 OfficeCLI 后端，不引入其他 DOCX 渲染依赖。
+`validate` 只证明 OpenXML 结构可读，不能证明分页正确。只有选择 OfficeCLI 生成 DOCX 时才执行这些 DOCX 验证：Windows 且安装 Word 时由 OfficeCLI 使用 `stats --page-count` 读取自动分页后的真实页数；前 30 页/后 30 页文档必须分别正好 30 页。其他环境先用 OfficeCLI HTML 预览，再用 Word/WPS 打开最终文件复核页数。若选择 text-only 模式，则验证 Markdown/TXT 完整性、字段一致性和源代码可追溯性，不执行也不宣称通过 DOCX 验证。
 
 ## 何时询问用户
 
 以下场景必须询问并停止，等待用户输入后再继续：
 
 - 多个项目候选目录需要选择。
-- 启动环境检查发现 OfficeCLI 缺失时，询问用户是否全局安装；安装完成后要求重启 Codex 并停止，重启后再继续。版本不匹配时询问是否切换固定版本。
+- OfficeCLI 不可用时，简要提示可选安装或跳过；用户跳过后继续 Markdown/TXT 工作流，不设置阻塞门禁。
 - 业务理解草稿生成后，请用户确认软件用途、行业、目标用户、核心功能和申请口径。
 - 软件全称、著作权人、日期、硬件/系统环境等登记字段需要确认。
 - 代码文件候选清单生成后，需要用户确认或修改 `代码文件选择.json`。
