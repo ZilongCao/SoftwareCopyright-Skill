@@ -14,6 +14,7 @@ sys.path.insert(0, str(SCRIPTS))
 from capture_screenshots import collect_screenshots  # noqa: E402
 import check_playwright_cli as playwright_check  # noqa: E402
 from check_environment import check_environment  # noqa: E402
+from build_docx_from_md import build_text_only  # noqa: E402
 from check_playwright_cli import npm_global_candidates  # noqa: E402
 from common import confirmation_is_current, read_json  # noqa: E402
 from confirm_stage import (
@@ -39,7 +40,7 @@ class WorkflowIntegrityTests(unittest.TestCase):
 
         self.assertEqual(total_source_line_count(analysis, manifest), 980)
 
-    def test_officecli_install_waits_for_codex_restart_when_path_is_stale(self) -> None:
+    def test_officecli_install_is_optional_when_path_is_stale(self) -> None:
         installed = self.temp_dir / "OfficeCLI" / "officecli.exe"
         with (
             patch("check_environment.resolve_officecli", return_value=None),
@@ -48,9 +49,27 @@ class WorkflowIntegrityTests(unittest.TestCase):
             result = check_environment()
 
         self.assertEqual(result["officecli_install_state"], "restart_required")
-        self.assertTrue(result["requires_user_input"])
-        self.assertIn("重启 Codex", result["next_action"])
+        self.assertFalse(result["requires_user_input"])
+        self.assertIsNone(result["confirmation_stage"])
+        self.assertIn("可以先跳过", result["next_action"])
         self.assertNotIn("OFFICECLI_PATH", result["next_action"])
+
+    def test_text_only_mode_exports_application_txt_without_docx(self) -> None:
+        workdir = self.temp_dir / "text-only"
+        draft = workdir / "草稿"
+        draft.mkdir(parents=True)
+        (draft / "申请表信息.md").write_text(
+            "➤软件全称：示例软件\n➤版本号：V1.0\n",
+            encoding="utf-8",
+        )
+
+        result = build_text_only(workdir, "示例软件", "V1.0")
+        final_dir = workdir / "正式资料"
+
+        self.assertTrue((final_dir / "申请表信息.txt").is_file())
+        self.assertIn("DOCX：未生成", (final_dir / "生成报告.md").read_text(encoding="utf-8"))
+        self.assertEqual(list(final_dir.glob("*.docx")), [])
+        self.assertEqual(len(result["outputs"]), 1)
 
     def test_playwright_cli_global_candidates_are_platform_standard(self) -> None:
         prefix = Path("global-prefix")
