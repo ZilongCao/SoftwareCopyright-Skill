@@ -82,7 +82,8 @@ class WorkflowIntegrityTests(unittest.TestCase):
     def test_playwright_cli_uses_global_prefix_without_restart(self) -> None:
         prefix = self.temp_dir / "global-prefix"
         prefix.mkdir()
-        executable = prefix / "playwright-cli.cmd"
+        executable = prefix / ("playwright-cli.cmd" if playwright_check.os.name == "nt" else "bin/playwright-cli")
+        executable.parent.mkdir(parents=True, exist_ok=True)
         executable.write_text("@echo off", encoding="utf-8")
         with (
             patch.object(playwright_check.shutil, "which", return_value=None),
