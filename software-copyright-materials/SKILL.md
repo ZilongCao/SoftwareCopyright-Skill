@@ -38,7 +38,7 @@ metadata:
 - 每个核心页面都要用普通用户视角说明页面用途、进入位置、用户可见内容、用户动作、输入限制或异常提示、结果反馈和截图预留。不得把章节写成“进入方式：/页面内容：/操作步骤：/操作规则：/操作结果与反馈：”这种字段模板；这些信息要自然合并到段落里。避免代码、框架、接口、状态管理、异步任务等技术化表达；撰写过程中由 agent 自行循环检查、扩写和修正，完整草稿完成后只向用户发起一次整体确认。
 - 操作手册必须去除明显“AI 味”：避免空泛赞美、营销口号、万能句式、每章同一结构、头中尾固定结构、过度对称的排比、没有项目细节的正确废话、频繁使用“旨在、赋能、一站式、智能化、高效便捷、显著提升、强大能力、丰富功能”等套话。每段都应能回答“这个项目里这个功能具体做什么、用户看见什么、操作后有什么结果”。
 - 操作手册生成必须同步输出 `草稿/操作手册自检记录.md` 和 `草稿/操作手册自检记录.json`，记录初稿、按项目流程扩写、去制式表达等自检轮次；如果前 3 轮仍发现问题，必须继续补写修正，直到问题清零或记录无法自动修复的原因后再停止。
-- 截图方式只允许用户选择：Playwright CLI 自动截图或用户自行截图。用户选择自动截图后，先检查固定验证版本的 `playwright-cli` 是否可用；如果用户说现在不截图、先跳过截图或截图失败，操作手册仍必须保留清晰可见的截图预留位置，正式 Word 中也要能看到。
+- 截图方式由用户选择：Playwright CLI 自动截图、GitHub Actions + Playwright 自动截图，或用户自行截图。选择 Playwright CLI 时先检查固定验证版本；选择 GitHub Actions 时，须确认项目位于可运行 Actions 的 GitHub 仓库、工作流具备启动服务和归档文件所需权限，并由 Actions 在 Runner 中启动应用、Playwright 操作真实页面、将图片提交到项目截图目录。用户明确跳过截图或截图失败时，操作手册仍须保留清晰可见的截图预留位置。
 - 申请表信息中的硬件/系统环境必须让用户确认或填写，不能硬编码。
 - OfficeCLI 是可选的增强型 DOCX 生成后端，不是项目分析、软件开发、测试或 Markdown 文档撰写的前置条件。启动时只提示一次是否使用；用户选择跳过后继续完整工作流，不得因 OfficeCLI 缺失而停止。
 - **Python-docx 是默认可用的 DOCX 生成路径**：当运行环境具备 `python-docx`，或 agent 能通过 Python-docx 创建文件时，可以直接将已确认的 Markdown 和真实源码排版为 DOCX，不要求安装 OfficeCLI。应将 Markdown/代码提取清单作为内容源，保留真实源码、黑色字体、标题层级、表格、页眉页脚和截图预留；正式文件写入 `软件著作权申请资料/正式资料/`。
@@ -57,7 +57,8 @@ metadata:
 - 研判业务前读 [business_understanding_rules.md](references/business_understanding_rules.md)。
 - 选择和抽取代码前读 [code_selection_rules.md](references/code_selection_rules.md) 与 [copyright_material_rules.md](references/copyright_material_rules.md)。
 - 写操作手册前读 [manual_structure.md](references/manual_structure.md)。
-- 用户选择自动截图后读 [playwright_cli_screenshots.md](references/playwright_cli_screenshots.md)。
+- 用户选择 Playwright CLI 自动截图后读 [playwright_cli_screenshots.md](references/playwright_cli_screenshots.md)。
+- 用户选择 GitHub Actions + Playwright 自动截图后读 [playwright_github_actions.md](references/playwright_github_actions.md)。
 - 正式生成和校验 DOCX 前读 [officecli_backend.md](references/officecli_backend.md)。
 
 ## 强制人工门禁
@@ -77,7 +78,7 @@ metadata:
 - `application-fields`：`草稿/申请表信息.md` 生成后，用户必须补全并确认硬件、系统环境、著作权人、日期等字段。
 - `application-fields-deferred`：如果用户明确要求申请表字段暂时全部留空或后续补充，必须记录“明确暂缓”门禁；该记录不等同于字段已确认，但允许用户在确认其他 Markdown 内容后继续生成操作手册和代码材料等不依赖登记字段的 DOCX。
 - `code-selection`：`草稿/代码文件选择.json` 生成后，用户必须确认或修改抽取文件。
-- `screenshot-method`：操作手册截图前，用户必须在 Playwright CLI 自动截图、用户自行截图两种方式中选择一种；如果用户明确说“现在不截图/先跳过截图”，记录为 `skip`。
+- `screenshot-method`：操作手册截图前，用户必须在 Playwright CLI 自动截图、GitHub Actions + Playwright 自动截图、用户自行截图三种方式中选择一种；如果用户明确说“现在不截图/先跳过截图”，记录为 `skip`。选择 GitHub Actions 时应记录工作流路径、运行结果和截图归档位置。
 - `markdown`：全部 Markdown 草稿完成后，用户必须确认可以进入 Word/TXT 生成。
 
 ## 工作流
@@ -355,7 +356,8 @@ OfficeCLI 的选择：
 操作手册草稿完成后，先停止并让用户选择截图方式，必须给出两种选项：
 
 1. Playwright CLI 自动截图：agent 启动或连接 Web 项目，按真实页面和操作流程控制浏览器，并把 PNG 截图直接保存到 `软件著作权申请资料/截图原始/`。
-2. 用户自行截图：用户自己把 PNG/JPG/JPEG/WebP 图片放入 `软件著作权申请资料/用户截图/`，agent 只负责整理和引用。
+2. GitHub Actions + Playwright 自动截图：适用于代码托管在 GitHub 且可运行 Actions 的项目。工作流在独立 Runner 中启动软件服务，由 Playwright 操作真实浏览器页面并保存 PNG，随后将截图和清单归档回项目仓库。应校验页面操作、截图文件、截图清单和归档提交；不能用组件测试结果代替浏览器截图。
+3. 用户自行截图：用户自己把 PNG/JPG/JPEG/WebP 图片放入 `软件著作权申请资料/用户截图/`，agent 只负责整理和引用。
 
 如果用户明确说“现在不截图”“先跳过截图”“这次不截图”，也必须记录截图方式门禁，方法填 `skip`。跳过截图不阻塞正式资料生成，但操作手册中每个核心功能模块必须保留可见的截图预留文字，例如：`【截图预留：请在此处插入“项目管理”页面或操作结果截图。】`。不要使用 HTML 注释作为截图占位，因为正式 Word 中看不到。
 
