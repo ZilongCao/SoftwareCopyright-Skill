@@ -69,7 +69,7 @@ def main() -> None:
     parser.add_argument("--input-dir", required=True, help="Directory containing screenshots to organize")
     parser.add_argument(
         "--method",
-        choices=["playwright-cli", "user-supplied"],
+        choices=["playwright-cli", "playwright-github-actions", "user-supplied"],
         default="user-supplied",
         help="Capture method recorded in the screenshot manifest",
     )
