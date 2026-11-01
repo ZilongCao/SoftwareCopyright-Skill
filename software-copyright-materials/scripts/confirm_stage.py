@@ -247,7 +247,21 @@ def confirm_application_fields(workdir: Path, note: str) -> Path:
     out_path = workdir / "草稿/申请表字段确认.json"
     data = load_json_or_empty(out_path)
     data["application_md_sha256"] = file_sha256(md_path)
+    data["application_fields_deferred"] = False
     write_confirmation(out_path, data, "application_fields_confirmed", note)
+    return out_path
+
+
+def defer_application_fields(workdir: Path, note: str) -> Path:
+    """Record an explicit user request to leave application fields blank for now."""
+    md_path = workdir / "草稿/申请表信息.md"
+    if not md_path.exists():
+        raise SystemExit("Missing 草稿/申请表信息.md")
+    out_path = workdir / "草稿/申请表字段确认.json"
+    data = load_json_or_empty(out_path)
+    data["application_md_sha256"] = file_sha256(md_path)
+    data["application_fields_confirmed"] = False
+    write_confirmation(out_path, data, "application_fields_deferred", note)
     return out_path
 
 
@@ -268,15 +282,25 @@ def confirm_markdown(workdir: Path, note: str) -> Path:
         issues.append("截图方式尚未确认")
     elif read_json(screenshot).get("screenshot_method") not in SCREENSHOT_METHODS:
         issues.append("截图方式已失效，请重新选择 Playwright CLI 自动截图、用户自行截图或跳过截图")
-    if not fields.exists() or not read_json(fields).get("application_fields_confirmed"):
-        issues.append("申请表字段尚未确认")
-    else:
-        app_md = workdir / "草稿/申请表信息.md"
-        if not app_md.exists() or read_json(fields).get("application_md_sha256") != file_sha256(app_md):
+    field_data = read_json(fields) if fields.exists() else {}
+    app_md = workdir / "草稿/申请表信息.md"
+    deferred_current = (
+        bool(field_data.get("application_fields_deferred"))
+        and confirmation_is_current(field_data)
+        and app_md.exists()
+        and field_data.get("application_md_sha256") == file_sha256(app_md)
+    )
+    if field_data.get("application_fields_confirmed"):
+        if not confirmation_is_current(field_data):
+            issues.append("申请表字段确认记录已失效，请重新确认")
+        elif not app_md.exists() or field_data.get("application_md_sha256") != file_sha256(app_md):
             issues.append("申请表信息在确认后已被修改，请重新确认")
-    field_issues = application_field_issues(workdir / "草稿/申请表信息.md")
-    if field_issues:
-        issues.append("申请表信息仍有字段未满足要求")
+    elif not deferred_current:
+        issues.append("申请表字段尚未确认，也未记录明确暂缓")
+    if not deferred_current:
+        field_issues = application_field_issues(app_md)
+        if field_issues:
+            issues.append("申请表信息仍有字段未满足要求")
     issues.extend(draft_completeness_issues(workdir))
 
     if issues:
@@ -306,6 +330,7 @@ def main() -> None:
             "code-selection",
             "screenshot-method",
             "application-fields",
+            "application-fields-deferred",
             "markdown",
         ],
     )
@@ -330,6 +355,8 @@ def main() -> None:
         path = confirm_screenshot_method(workdir, args.note, args.method or "")
     elif args.stage == "application-fields":
         path = confirm_application_fields(workdir, args.note)
+    elif args.stage == "application-fields-deferred":
+        path = defer_application_fields(workdir, args.note)
     else:
         path = confirm_markdown(workdir, args.note)
 
