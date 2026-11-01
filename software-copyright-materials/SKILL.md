@@ -5,12 +5,12 @@ description: >
   Use this skill when the user asks for 软件著作权, 软著申请资料, 软著代码材料,
   操作手册, 申请表信息, or wants Word/TXT materials for software copyright registration.
   The workflow analyzes the imported project, extracts real source code, creates Markdown
-  drafts for user confirmation, then optionally uses a pinned OfficeCLI backend to produce
-  final Word documents. If OfficeCLI is unavailable, the workflow continues in Markdown/text-only mode.
+  drafts for user confirmation, then produces Word documents with Python-docx when available, while OfficeCLI remains an optional enhanced backend.
+  If neither DOCX backend is available, the workflow continues in Markdown/text-only mode.
 metadata:
   short-description: 生成软著申请资料 Word/TXT
   author: Fokkyp
-  version: "2.6"
+  version: "2.7"
   repository: https://github.com/Fokkyp/SoftwareCopyright-Skill
 ---
 
@@ -40,9 +40,12 @@ metadata:
 - 操作手册生成必须同步输出 `草稿/操作手册自检记录.md` 和 `草稿/操作手册自检记录.json`，记录初稿、按项目流程扩写、去制式表达等自检轮次；如果前 3 轮仍发现问题，必须继续补写修正，直到问题清零或记录无法自动修复的原因后再停止。
 - 截图方式只允许用户选择：Playwright CLI 自动截图或用户自行截图。用户选择自动截图后，先检查固定验证版本的 `playwright-cli` 是否可用；如果用户说现在不截图、先跳过截图或截图失败，操作手册仍必须保留清晰可见的截图预留位置，正式 Word 中也要能看到。
 - 申请表信息中的硬件/系统环境必须让用户确认或填写，不能硬编码。
-- OfficeCLI 是可选的正式 DOCX 生成后端，不是项目分析、软件开发、测试或 Markdown 文档撰写的前置条件。启动时只提示一次是否安装；用户选择跳过后继续完整的 Markdown 工作流，不得因 OfficeCLI 缺失而停止。
-- 用户选择使用 OfficeCLI 时，固定验证版本为 `1.0.151`，运行时设置 `OFFICECLI_SKIP_UPDATE=1`；不得静默安装或升级。若用户跳过 OfficeCLI，不得生成或宣称生成了 DOCX；应使用 `--text-only` 生成申请表 TXT 和生成报告，Markdown 草稿保留在草稿目录，用户可自行用 Word/WPS 排版。
-- Python 不直接解包、重打包或写入 DOCX 包。OfficeCLI 的安装、批处理、分页与校验细节见 `references/officecli_backend.md`。
+- OfficeCLI 是可选的增强型 DOCX 生成后端，不是项目分析、软件开发、测试或 Markdown 文档撰写的前置条件。启动时只提示一次是否使用；用户选择跳过后继续完整工作流，不得因 OfficeCLI 缺失而停止。
+- **Python-docx 是默认可用的 DOCX 生成路径**：当运行环境具备 `python-docx`，或 agent 能通过 Python-docx 创建文件时，可以直接将已确认的 Markdown 和真实源码排版为 DOCX，不要求安装 OfficeCLI。应将 Markdown/代码提取清单作为内容源，保留真实源码、黑色字体、标题层级、表格、页眉页脚和截图预留；正式文件写入 `软件著作权申请资料/正式资料/`。
+- 使用 Python-docx 时，禁止手工拼接、解包、重打包或直接篡改 DOCX ZIP/XML；通过 `python-docx` 等文档库创建文件。生成后至少检查文件非空、DOCX ZIP 完整性及 `word/document.xml` 存在，并核对正文、源码文件数和截图预留位置。结构校验不等于分页校验；除非通过 Word/WPS、LibreOffice 或 OfficeCLI 实际渲染并读取页数，否则不得声称已核验真实页数。
+- 用户选择使用 OfficeCLI 时，固定验证版本为 `1.0.151`，运行时设置 `OFFICECLI_SKIP_UPDATE=1`；不得静默安装或升级。OfficeCLI 可用于增强排版、预览和分页校验，但不是生成 DOCX 的唯一途径。
+- 若 Python-docx 和 OfficeCLI 均不可用，才使用 `--text-only` 生成申请表 TXT 和生成报告，Markdown 草稿保留在草稿目录，用户可自行用 Word/WPS 排版。不得把 Markdown 文件伪装成 DOCX。
+- OfficeCLI 的安装、批处理、分页与校验细节见 `references/officecli_backend.md`。
 
 ## 路径与按需参考
 
@@ -97,13 +100,13 @@ metadata:
 - 当前会在“当前目录/软件著作权申请资料”下生成材料。
 - Python、Markdown 草稿和申请表 TXT 能力是否可用。
 - OfficeCLI 路径、版本，以及是否等于固定验证版本 `1.0.151`。
-- DOCX 自动生成、OpenXML 校验和预览是否可用。
+- Python-docx DOCX 生成、OfficeCLI DOCX 生成、OpenXML 校验和实际分页预览分别是否可用。
 - 若 OfficeCLI 缺失、需要重启或版本不匹配，提示用户可以现在安装，也可以跳过并继续；不得静默安装或升级。
 
 OfficeCLI 的选择：
 
 - **选择安装/使用**：用户自行按官方说明全局安装。安装后如当前进程尚未识别新 PATH，再提醒用户重启 coding agent 并重新检查。固定验证版本为 `1.0.151`；使用其他版本必须明确提示兼容性风险。
-- **选择跳过**：立即继续项目定位、源码分析、业务理解、代码选择、测试和 Markdown 草稿，不要求记录 `environment` 确认门禁。正式材料阶段使用 `--text-only` 生成申请表 TXT 和生成报告；操作手册、代码材料等 Markdown 留在草稿目录，供用户自行用 Word/WPS 排版。
+- **选择跳过**：立即继续项目定位、源码分析、业务理解、代码选择、测试和 Markdown 草稿，不要求记录 `environment` 确认门禁。正式材料阶段优先使用 Python-docx 生成 DOCX；只有 Python-docx 也不可用时才使用 `--text-only` 生成申请表 TXT 和生成报告。
 - 不得在 OfficeCLI 不可用时调用不存在的 DOCX 后端、伪造 DOCX 文件或把 Markdown 改名为 DOCX。
 - 用户以后需要自动生成 Word 时，可以再安装固定版本并重新运行环境检查；无需重新开发软件或重写已确认的 Markdown。
 
@@ -410,11 +413,15 @@ OfficeCLI 的选择：
   --note "<用户确认内容>"
 ```
 
-### 10. 生成正式资料（OfficeCLI 可选）
+### 10. 生成正式资料（Python-docx 默认，OfficeCLI 可选）
 
-用户确认 Markdown 后，根据启动环境检查结果和用户选择决定输出方式。
+用户确认本轮可生成的 Markdown 后，根据启动环境检查结果和用户选择决定输出方式。申请表字段如经用户明确要求暂缓，应在生成报告中记录“字段待补”，不得擅自填写；只有用户明确同意暂缓且不影响本轮文档内容时，才可生成不含完整登记信息的待补充材料。
 
-**方式 A：使用 OfficeCLI 生成 Word**
+**方式 A：使用 Python-docx 生成 Word（默认）**
+
+当 Python-docx 可用时，优先使用 `python-docx` 将操作手册、代码材料和用户要求的空白申请表模板生成 DOCX。可在项目内创建可复用的构建脚本，读取已确认的 Markdown、代码提取清单和真实源码；不得重新编造或改写代码材料。输出写入 `正式资料/`，并生成 `生成报告.md`。至少验证 DOCX ZIP 完整性、主文档 XML、软件名称/版本号、源码文件数量、代码来源 SHA 和截图预留数量。Python-docx 不负责真实分页渲染；未通过 Word/WPS、LibreOffice 或 OfficeCLI 实际渲染时，只报告结构校验，不报告准确页数。
+
+**方式 B：使用 OfficeCLI 生成 Word**
 
 只有 OfficeCLI 固定验证版本已就绪且用户选择生成 Word 时，才运行：
 
@@ -427,9 +434,9 @@ OfficeCLI 的选择：
 
 若用户明确接受其他版本的兼容性风险，可额外传入 `--allow-untested-officecli`。正式生成脚本重新读取已确认的申请表软件全称和版本号，以其作为正式文件名、标题和页眉。OfficeCLI DOCX 写入、主题字体、页数和校验规则见 `references/officecli_backend.md`。
 
-**方式 B：跳过 OfficeCLI，生成 TXT 与 Markdown 交付**
+**方式 C：Python-docx 和 OfficeCLI 均不可用时，生成 TXT 与 Markdown 交付**
 
-OfficeCLI 未安装、版本不匹配，或用户选择暂不生成 Word 时，运行：
+Python-docx 不可用、OfficeCLI 未安装或版本不匹配，且用户同意本轮不生成 Word 时，运行：
 
 ```bash
 <PYTHON> "<SKILL_DIR>/scripts/build_docx_from_md.py" \
@@ -439,7 +446,7 @@ OfficeCLI 未安装、版本不匹配，或用户选择暂不生成 Word 时，�
   --text-only
 ```
 
-该模式不调用 OfficeCLI 可执行文件，只生成 `正式资料/申请表信息.txt` 和明确标注 DOCX 已跳过的 `正式资料/生成报告.md`。操作手册、代码材料和业务理解继续保留在 `草稿/` 中，用户可使用 Word/WPS 根据 Markdown 内容自行排版。不得把 Markdown 文件伪装成 DOCX，也不得声称已完成 Word 页数或 OpenXML 校验。
+该模式不调用 DOCX 后端，只生成 `正式资料/申请表信息.txt` 和明确标注 DOCX 未生成的 `正式资料/生成报告.md`。操作手册、代码材料和业务理解继续保留在 `草稿/` 中，用户可使用 Word/WPS 根据 Markdown 内容自行排版。不得把 Markdown 文件伪装成 DOCX，也不得声称已完成 Word 页数或 OpenXML 校验。
 
 两种模式都必须使用已确认的软件全称和版本号，并在生成报告中明确本次实际生成的文件、未生成的文件及后续人工检查事项。
 
